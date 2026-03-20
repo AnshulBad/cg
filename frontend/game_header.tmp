@@ -1,0 +1,11 @@
+/* 
+   Compliance Quest — OfficeScene  (Phaser 3)
+   Premium interactive game with isometric characters,
+   collision zones, depth sorting & corridor navigation
+    */
+
+// SCENARIOS loaded from scenarios.js (included before this file)
+if (typeof SCENARIOS === 'undefined') {
+  console.error('SCENARIOS not found! Make sure scenarios.js is loaded before game.js');
+}
+

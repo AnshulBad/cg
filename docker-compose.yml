@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: compliance
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+  backend:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: sh -c "pip install -r requirements.txt && uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - '8000:8000'
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/compliance
+    depends_on:
+      - db
+volumes:
+  db-data:
+    driver: local

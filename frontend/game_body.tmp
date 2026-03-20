@@ -1,0 +1,1427 @@
+};
+
+const NPC_NAMES = ['Aditi', 'Raj', 'Priya', 'Vikram', 'Meera', 'Arjun', 'Neha', 'Kabir', 'Ananya', 'Rohan'];
+const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
+
+const MAX_LEVEL = 3;
+const SCENARIOS_PER_LEVEL = 10;
+const TIMER_SECONDS = 15;
+
+/* ─────────────────────────────────────────────────────────
+   Sitting NPC Desk Positions (normalized to 1.0)
+   ───────────────────────────────────────────────────────── */
+const DESK_POSITIONS = [
+  { fx: 0.31, fy: 0.44, dir: 'up' },    // Row 1 Left
+  { fx: 0.72, fy: 0.44, dir: 'up' },    // Row 1 Right
+  { fx: 0.23, fy: 0.62, dir: 'up' },    // Row 2 Left
+  { fx: 0.40, fy: 0.56, dir: 'up' },    // Row 2 Left-Center (Gray Chair)
+  { fx: 0.73, fy: 0.61, dir: 'up' },    // Row 2 Right-Center (Blue Chair)
+  { fx: 0.81, fy: 0.81, dir: 'up' },    // Row 2 Right (Purple Chair)
+];
+
+const PLAYER_HOME = { fx: 0.23, fy: 0.94, dir: 'up' };
+const MANAGER_POS = { fx: 0.88, fy: 0.18, dir: 'down' };
+
+/* ─────────────────────────────────────────────────────────
+   Procedural isometric character texture generator.
+   Creates human-looking figures that match the pixel-art
+   style of the office background.
+   ───────────────────────────────────────────────────────── */
+function createCharacterTexture(scene, key, options = {}) {
+  const {
+    shirtColor = '#3B82F6',   // blue shirt
+    pantsColor = '#1E293B',   // dark pants
+    skinColor = '#D4A574',    // skin tone
+    hairColor = '#3D2B1F',    // dark brown hair
+    width = 28,
+    height = 44,
+    isWalking = false,
+    walkFrame = 0,
+    facing = 'down',         // 'down','up','left','right'
+  } = options;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  const cx = width / 2;
+
+  // Shadow under character
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(cx, height - 2, 9, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Leg offsets for walking animation (reduced swing to match isometric style)
+  let leftLegOff = 0, rightLegOff = 0;
+  if (isWalking) {
+    const swing = Math.sin(walkFrame * Math.PI / 2) * 2;
+    leftLegOff = swing;
+    rightLegOff = -swing;
+  }
+
+  // ── Legs ──
+  ctx.fillStyle = pantsColor;
+  // Left leg
+  ctx.fillRect(cx - 5, height - 14 + leftLegOff, 4, 10);
+  // Right leg
+  ctx.fillRect(cx + 1, height - 14 + rightLegOff, 4, 10);
+
+  // ── Shoes ──
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - 6, height - 5 + leftLegOff, 5, 3);
+  ctx.fillRect(cx + 1, height - 5 + rightLegOff, 5, 3);
+
+  // ── Body/Torso ──
+  ctx.fillStyle = shirtColor;
+  // Torso
+  ctx.fillRect(cx - 7, height - 26, 14, 14);
+  // Slight shape
+  ctx.fillRect(cx - 8, height - 24, 16, 10);
+
+  // ── Arms ──
+  let leftArmOff = 0, rightArmOff = 0;
+  if (isWalking) {
+    leftArmOff = -leftLegOff * 0.7;
+    rightArmOff = -rightLegOff * 0.7;
+  }
+  // Left arm
+  ctx.fillStyle = shirtColor;
+  ctx.fillRect(cx - 11, height - 25 + leftArmOff, 4, 10);
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(cx - 11, height - 16 + leftArmOff, 4, 3);
+  // Right arm
+  ctx.fillStyle = shirtColor;
+  ctx.fillRect(cx + 7, height - 25 + rightArmOff, 4, 10);
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(cx + 7, height - 16 + rightArmOff, 4, 3);
+
+  // ── Neck ──
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(cx - 2, height - 29, 4, 4);
+
+  // ── Head ──
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.ellipse(cx, height - 34, 6, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Add detail for professional look: Suit jacket (optional) ──
+  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 7, height - 26, 14, 14);
+
+  // ── Hair ──
+  ctx.fillStyle = hairColor;
+  if (facing === 'up') {
+    // Full hair from behind
+    ctx.beginPath();
+    ctx.ellipse(cx, height - 36, 6, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Hair on top
+    ctx.beginPath();
+    ctx.ellipse(cx, height - 38, 6, 4, 0, Math.PI * 0.8, Math.PI * 2.2);
+    ctx.fill();
+    ctx.fillRect(cx - 6, height - 39, 12, 4);
+  }
+
+  // ── Face details (only front/side facing) ──
+  if (facing === 'down' || facing === 'left' || facing === 'right') {
+    // Eyes
+    ctx.fillStyle = '#1a1a1a';
+    if (facing === 'left') {
+      ctx.fillRect(cx - 3, height - 35, 2, 2);
+    } else if (facing === 'right') {
+      ctx.fillRect(cx + 1, height - 35, 2, 2);
+    } else {
+      ctx.fillRect(cx - 3, height - 35, 2, 2);
+      ctx.fillRect(cx + 1, height - 35, 2, 2);
+    }
+  }
+
+  // Add to Phaser texture manager
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  scene.textures.addCanvas(key, canvas);
+}
+
+/* ─────────────────────────────────────────────────────────
+   Generate all character animation frames as textures
+   ───────────────────────────────────────────────────────── */
+function generateCharacterSprites(scene, prefix, options = {}) {
+  const dirs = ['down', 'up', 'left', 'right'];
+  dirs.forEach(dir => {
+    // Standing frame
+    createCharacterTexture(scene, `${prefix}_${dir}_stand`, {
+      ...options, facing: dir, isWalking: false
+    });
+    // Walking frames
+    for (let f = 0; f < 4; f++) {
+      createCharacterTexture(scene, `${prefix}_${dir}_walk${f}`, {
+        ...options, facing: dir, isWalking: true, walkFrame: f
+      });
+    }
+  });
+}
+
+/* ─────────────────────────────────────────────────────────
+   Draw a stylized isometric desk graphic to canvas
+   ───────────────────────────────────────────────────────── */
+function createDeskTexture(scene) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 60; canvas.height = 40;
+  const ctx = canvas.getContext('2d');
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(8, 22, 44, 14);
+
+  // Professional desk top (dark slate)
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(5, 15, 50, 12);
+
+  // Monitor silhouette
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(20, 5, 20, 10);
+  ctx.fillRect(28, 15, 4, 2);
+
+  if (scene.textures.exists('desk')) scene.textures.remove('desk');
+  scene.textures.addCanvas('desk', canvas);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   OfficeScene — Main game scene
+   ═══════════════════════════════════════════════════════════ */
+class OfficeScene extends Phaser.Scene {
+  constructor() { super('office'); }
+
+  init() {
+    this.username = localStorage.getItem('cg_username') || 'Player';
+    this.domain = localStorage.getItem('cg_domain') || 'cyber';
+    this.level = 1;
+    this.health = 100;
+    this.correct = 0;
+    this.total = 0;
+    this.levelCorrect = 0;
+    this.scenariosCompleted = 0;
+    this.scenarioRunning = false;
+    this.timerInterval = null;
+    this.scenariosUsed = new Set();
+    this.npcIndex = 0;
+    this.gameActive = false;
+    this.walkInstructionShown = false;
+    this.playerFacing = 'up';
+    this.playerWalkFrame = 0;
+    this.playerWalkTimer = 0;
+    this.playerIsSitting = true;
+    this.lastPlayerMoveTime = 0;
+    this.lastHealthDrainTime = 0;
+    this.idleHealthDropCount = 0;
+  }
+
+  preload() {
+    this.load.image('office_bg', 'assets/Gemini_Generated_Image_uw4itquw4itquw4i.png');
+  }
+
+  create() {
+    // ── Game world dimensions (match aspect ratio of background) ──
+    this.mapW = this.scale.width;
+    this.mapH = this.scale.height;
+    this.physics.world.setBounds(0, 0, this.mapW, this.mapH);
+    this.cameras.main.setBounds(0, 0, this.mapW, this.mapH);
+
+    // Background — fill entire game canvas
+    const bg = this.add.image(0, 0, 'office_bg').setOrigin(0, 0);
+    bg.setDisplaySize(this.mapW, this.mapH);
+    bg.setDepth(0);
+
+    // ── Generate character textures ──
+    // Player — blue shirt
+    generateCharacterSprites(this, 'player', {
+      shirtColor: '#3B82F6', pantsColor: '#1E293B',
+      skinColor: '#D4A574', hairColor: '#3D2B1F'
+    });
+
+    // NPC variants — different colors
+    const npcStyles = [
+      { shirtColor: '#A855F7', pantsColor: '#1E293B', skinColor: '#C68642', hairColor: '#1a1a1a' },
+      { shirtColor: '#EF4444', pantsColor: '#374151', skinColor: '#D4A574', hairColor: '#4a3728' },
+      { shirtColor: '#10B981', pantsColor: '#1F2937', skinColor: '#F0C8A0', hairColor: '#2d1b0e' },
+      { shirtColor: '#F59E0B', pantsColor: '#1E293B', skinColor: '#C68642', hairColor: '#1a1a1a' },
+      { shirtColor: '#EC4899', pantsColor: '#374151', skinColor: '#D4A574', hairColor: '#3D2B1F' },
+      { shirtColor: '#06B6D4', pantsColor: '#1F2937', skinColor: '#F0C8A0', hairColor: '#4a3728' },
+    ];
+    npcStyles.forEach((style, i) => {
+      generateCharacterSprites(this, `npc${i}`, style);
+    });
+
+    // ── Collision walls ──
+    this.wallGroup = this.physics.add.staticGroup();
+    // Outer boundary
+    this.addWall(0, 0, this.mapW, 16);
+    this.addWall(0, this.mapH - 16, this.mapW, 16);
+    this.addWall(0, 0, 16, this.mapH);
+    this.addWall(this.mapW - 16, 0, 16, this.mapH);
+    // Scale collision zones to match current game dimensions
+    const sx = this.mapW / 1600;
+    const sy = this.mapH / 1000;
+
+    // Create desks and NPCs
+    this.deskGroup = this.physics.add.staticGroup();
+    createDeskTexture(this);
+    this.npcList = [];
+
+    DESK_POSITIONS.forEach((desk, i) => {
+      const dx = desk.fx * this.mapW;
+      const dy = desk.fy * this.mapH;
+
+      const d = this.deskGroup.create(dx, dy + 10, 'desk');
+      d.setDepth(5 + (dy / this.mapH) * 10);
+      d.setVisible(false); // Background already includes desks
+      d.body.setSize(60, 30); d.body.setOffset(0, 10);
+
+      const styleIdx = i % 6;
+      const npc = this.physics.add.sprite(dx, dy - 5, `npc${styleIdx}_${desk.dir}_stand`);
+      npc.setCollideWorldBounds(true);
+      npc.body.setSize(18, 10);
+      npc.body.setOffset(5, 34);
+      npc.setDepth(d.depth - 0.1);
+      npc.setScale(1.1); // 10% bigger
+
+      npc.npcName = NPC_NAMES[i];
+      npc.npcStyleIdx = styleIdx;
+      npc.homeX = dx;
+      npc.homeY = dy - 5;
+      npc.homeDir = desk.dir;
+      npc.isSitting = true;
+
+      const label = this.add.text(npc.x, npc.y - 28, npc.npcName, {
+        font: '600 9px Outfit, Inter, Arial', fill: '#c084fc',
+        backgroundColor: 'rgba(8,14,26,0.85)', padding: { x: 4, y: 2 }
+      }).setOrigin(0.5);
+      label.setDepth(npc.depth + 1);
+      npc.label = label;
+
+      this.npcList.push(npc);
+    });
+
+    // ── Manager NPC ──
+    const mx = MANAGER_POS.fx * this.mapW;
+    const my = MANAGER_POS.fy * this.mapH;
+    this.manager = this.physics.add.sprite(mx, my, 'npc7_down_stand'); // Using Rohan/npc7 style for manager
+    this.manager.npcName = 'Manager (Mr. Singh)';
+    this.manager.setDepth(5 + (my / this.mapH) * 10);
+    this.manager.npcStyleIdx = 7;
+    this.manager.setScale(1.1); // 10% bigger
+
+    this.managerLabel = this.add.text(mx, my - 28, this.manager.npcName, {
+      font: '700 9px Outfit, Inter, Arial', fill: '#fbbf24',
+      backgroundColor: 'rgba(8,14,26,0.85)', padding: { x: 5, y: 2 }
+    }).setOrigin(0.5).setDepth(this.manager.depth + 1);
+
+    // ── Player ──
+    // Start at your own home desk!
+    const startX = PLAYER_HOME.fx * this.mapW;
+    const startY = PLAYER_HOME.fy * this.mapH;
+    this.player = this.physics.add.sprite(startX, startY, 'player_up_stand');
+    this.player.setScale(1.1); // 10% bigger
+    this.player.setCollideWorldBounds(true);
+    // Physics body at feet for better isometric sorting/collision
+    this.player.body.setSize(18, 10);
+    this.player.body.setOffset(5, 34);
+    this.player.setDepth(5 + (startY / this.mapH) * 10 - 0.5);
+
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+
+    // Controls
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.input.keyboard.removeCapture('SPACE');
+    this.wasd = this.input.keyboard.addKeys({ w: 'W', a: 'A', s: 'S', d: 'D' });
+
+    // Collision Walls for the "Bay Area" (Corridors) logic
+    // Block Top Area (Cafeteria/Tables)
+    this.addWall(0, 0, this.mapW, this.mapH * 0.18);
+
+    // Block Desk Islands (Tuned to be tighter so player can roam around blocks nicely)
+    // Top Row Desks
+    this.addWall(this.mapW * 0.26, this.mapH * 0.25, this.mapW * 0.16, this.mapH * 0.14);
+    this.addWall(this.mapW * 0.58, this.mapH * 0.25, this.mapW * 0.16, this.mapH * 0.14);
+
+    // Middle Row Desks (Large Islands)
+    this.addWall(this.mapW * 0.18, this.mapH * 0.48, this.mapW * 0.22, this.mapH * 0.14);
+    this.addWall(this.mapW * 0.60, this.mapH * 0.48, this.mapW * 0.22, this.mapH * 0.14);
+
+    // Bottom Row Desks
+    this.addWall(this.mapW * 0.18, this.mapH * 0.75, this.mapW * 0.22, this.mapH * 0.14);
+    this.addWall(this.mapW * 0.60, this.mapH * 0.75, this.mapW * 0.22, this.mapH * 0.14);
+
+    // Right Sidebar (Shelf/Fridge)
+    this.addWall(this.mapW * 0.88, 0, this.mapW * 0.12, this.mapH * 0.4);
+
+    // Collision
+    this.physics.add.collider(this.player, this.wallGroup);
+    this.physics.add.collider(this.player, this.deskGroup);
+
+    // Player name label
+    this.playerLabel = this.add.text(this.player.x, this.player.y - 28, this.username, {
+      font: '700 10px Outfit, Inter, Arial', fill: '#38bdf8',
+      backgroundColor: 'rgba(8,14,26,0.85)', padding: { x: 5, y: 2 }
+    }).setOrigin(0.5);
+
+    // Scale factors stored for later use
+    this.sx = sx;
+    this.sy = sy;
+
+    // HUD
+    this.updateHUD();
+    this.lastStepTime = 0;
+    this.lastDustTime = 0;
+
+    // Removed background random collectibles
+
+    // ESC to Quit Game
+    this.input.keyboard.on('keydown-ESC', () => {
+      if (this.gameActive && this.health > 0) {
+        this.gameActive = false; // Disable game interactions
+
+        this._showWorldBubble(this.player, "I'm logging off for the day! Goodbye everyone!");
+        this.player.body.setVelocity(0, 0);
+
+        const exitX = this.mapW / 2;
+        const exitY = this.mapH + 50; // Off-screen bottom
+
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, exitX, exitY);
+        const exitDuration = Math.max(1500, dist * 12);
+
+        this._walkPlayerTo(exitX, exitY, exitDuration, () => {
+          this.triggerGameOver();
+        });
+      }
+    });
+
+    // ── Generate Boosters ──
+    this.boosterGroup = this.add.group();
+
+    // Fixed table positions based on the provided background image (approximate relative coordinates)
+    const boosterPositions = [
+      { fx: 0.29, fy: 0.45 }, // Left round table
+      { fx: 0.67, fy: 0.45 }, // Right round table
+      { fx: 0.85, fy: 0.70 }, // Some other side area near plant
+    ];
+
+    boosterPositions.forEach((pos) => {
+      const icons = ['☕', '🍩', '🥤'];
+      const icon = icons[Math.floor(Math.random() * icons.length)];
+      const bX = pos.fx * this.mapW;
+      const bY = pos.fy * this.mapH;
+
+      // Render booster over tables
+      const b = this.add.text(bX, bY, icon, { fontSize: '20px' }).setOrigin(0.5).setDepth(4 + (bY / this.mapH) * 10);
+      this.tweens.add({ targets: b, y: b.y - 4, yoyo: true, repeat: -1, duration: 800 });
+      this.boosterGroup.add(b);
+    });
+
+    // Wait for user to click Start
+    this._waitForStart();
+  }
+
+  _waitForStart() {
+    if (window.gameStarted) {
+      this.username = localStorage.getItem('cg_username') || 'Player';
+      this.domain = localStorage.getItem('cg_domain') || 'cyber';
+      if (this.playerLabel) this.playerLabel.setText(this.username);
+      this.updateHUD();
+
+      // Show intro story prompt
+      this._showIntroStory().then(() => {
+        this.gameActive = true;
+        this._showWalkInstruction();
+        this.time.addEvent({ delay: 3500, callback: () => this.triggerNextScenario(), loop: false });
+      });
+    } else {
+      this.time.addEvent({ delay: 200, callback: () => this._waitForStart(), loop: false });
+    }
+  }
+
+  _showWalkInstruction() {
+    if (this.walkInstructionShown) return;
+    this.walkInstructionShown = true;
+    const tip = document.createElement('div');
+    tip.className = 'walk-instruction';
+    tip.innerHTML = `
+      <div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+      <span>or Arrow keys to freely move around the office</span>
+    `;
+    document.body.appendChild(tip);
+    setTimeout(() => {
+      tip.style.transition = 'opacity .5s, transform .5s';
+      tip.style.opacity = '0';
+      tip.style.transform = 'translate(-50%, 20px)';
+      setTimeout(() => tip.remove(), 600);
+    }, 6000);
+  }
+
+  /* ── Intro Story ───────────────────────────────────────── */
+  _showIntroStory() {
+    return new Promise(resolve => {
+      const modal = document.createElement('div');
+      modal.className = 'game-overlay show';
+      modal.style.justifyContent = 'center';
+      modal.style.alignItems = 'center';
+      modal.style.zIndex = '9999';
+
+      const box = document.createElement('div');
+      box.className = 'scenario-card';
+      box.style.maxWidth = '500px';
+
+      const title = document.createElement('h2');
+      title.textContent = 'Welcome Aboard!';
+      title.style.color = 'var(--accent)';
+      title.style.marginBottom = '16px';
+
+      const story = document.createElement('p');
+      story.style.fontSize = '1.1rem';
+      story.style.lineHeight = '1.6';
+      story.style.marginBottom = '24px';
+      story.innerHTML = `Hi <strong>${this.username}</strong>, you are a compliance officer for RDX Solutions Private Limited and you are helping people in your office solve difficult problems related to compliance.`;
+
+      const btn = document.createElement('button');
+      btn.className = 'start-btn';
+      btn.textContent = 'Accept Mission';
+      btn.style.width = '100%';
+
+      box.appendChild(title);
+      box.appendChild(story);
+      box.appendChild(btn);
+      modal.appendChild(box);
+      document.body.appendChild(modal);
+
+      btn.onclick = () => {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+        resolve();
+      };
+    });
+  }
+
+  addWall(x, y, w, h) {
+    const wall = this.wallGroup.create(x + w / 2, y + h / 2, null);
+    wall.setDisplaySize(w, h).refreshBody();
+    wall.setVisible(false);
+  }
+
+  /* ── Update loop ─────────────────────────────────────── */
+  update(time) {
+    if (this.scenarioRunning || !this.gameActive) {
+      this.player.setVelocity(0);
+      this._setPlayerTexture('stand');
+      this.lastPlayerMoveTime = time; // Prevent drain while in dialogue
+      return;
+    }
+
+    const speed = 130;
+    let vx = 0, vy = 0, moving = false;
+
+    // Check if any arrow/wasd keys are pressed to stand up
+    const keysPressed = this.cursors.left.isDown || this.cursors.right.isDown ||
+      this.cursors.up.isDown || this.cursors.down.isDown ||
+      this.wasd.a.isDown || this.wasd.d.isDown ||
+      this.wasd.w.isDown || this.wasd.s.isDown;
+
+    if (keysPressed) {
+      this.playerIsSitting = false;
+    }
+
+    if (!this.playerIsSitting) {
+      if (this.cursors.left.isDown || this.wasd.a.isDown) {
+        vx = -speed; this.playerFacing = 'left'; moving = true;
+      }
+      else if (this.cursors.right.isDown || this.wasd.d.isDown) {
+        vx = speed; this.playerFacing = 'right'; moving = true;
+      }
+
+      if (this.cursors.up.isDown || this.wasd.w.isDown) {
+        vy = -speed; if (!vx) this.playerFacing = 'up'; moving = true;
+      }
+      if (this.cursors.down.isDown || this.wasd.s.isDown) {
+        vy = speed; if (!vx) this.playerFacing = 'down'; moving = true;
+      }
+    }
+
+    this.player.setVelocity(vx, vy);
+
+    if (moving) {
+      this.playerWalkTimer += 1;
+      if (this.playerWalkTimer > 6) {
+        this.playerWalkFrame = (this.playerWalkFrame + 1) % 4;
+        this.playerWalkTimer = 0;
+      }
+      this._setPlayerTexture(`walk${this.playerWalkFrame}`);
+      this.lastPlayerMoveTime = time; // Reset move timer
+    } else {
+      this._setPlayerTexture('stand');
+      this.playerWalkFrame = 0;
+      this.playerWalkTimer = 0;
+
+      // Inactivity Health Drain logic
+      if (!this.lastPlayerMoveTime) this.lastPlayerMoveTime = time;
+      if (time - this.lastPlayerMoveTime > 3000) {
+        if (!this.lastHealthDrainTime || time - this.lastHealthDrainTime > 1000) {
+          this.health = Math.max(0, this.health - 1);
+          this.idleHealthDropCount = (this.idleHealthDropCount || 0) + 1;
+          this.updateHUD();
+          if (window.soundEngine.tick) window.soundEngine.tick();
+          this.lastHealthDrainTime = time;
+
+          if (this.idleHealthDropCount >= 5 && this.health > 0) {
+            this.showFeedbackToast('⚠️ Keep moving around the office to stop health drops!', false);
+            this.idleHealthDropCount = 0;
+          }
+
+          if (this.health <= 0) {
+            this.gameActive = false;
+            this.triggerGameOver();
+          }
+        }
+      }
+    }
+
+    // Check Boosters
+    if (this.boosterGroup) {
+      const children = this.boosterGroup.getChildren();
+      for (let i = children.length - 1; i >= 0; i--) {
+        const b = children[i];
+        if (b.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y) < 30) {
+          const icon = b.text;
+          b.destroy();
+          this.health = Math.min(100, this.health + 5);
+          this.updateHUD();
+          if (window.soundEngine.levelUp) window.soundEngine.levelUp();
+          this.showScorePopup(`+5% ${icon}`, '#34d399');
+        }
+      }
+    }
+
+    // Y-depth sorting
+    this.player.setDepth(5 + (this.player.y / this.mapH) * 10);
+
+    // Name label
+    if (this.playerLabel) {
+      this.playerLabel.setPosition(this.player.x, this.player.y - 28);
+      this.playerLabel.setDepth(this.player.depth + 1);
+    }
+
+    // Footstep sounds
+    if ((vx || vy) && time - this.lastStepTime > 400) {
+      window.soundEngine.tick();
+      this.lastStepTime = time;
+    }
+
+    // Dust particles
+    if ((vx || vy) && time - this.lastDustTime > 250) {
+      this.spawnDust(this.player.x, this.player.y + 16);
+      this.lastDustTime = time;
+    }
+  }
+
+  _setPlayerTexture(anim) {
+    const key = `player_${this.playerFacing}_${anim}`;
+    if (this.textures.exists(key) && this.player.texture.key !== key) {
+      this.player.setTexture(key);
+    }
+  }
+
+  spawnDust(x, y) {
+    for (let i = 0; i < 2; i++) {
+      const p = this.add.circle(
+        x + Phaser.Math.Between(-4, 4), y,
+        Phaser.Math.Between(1, 2), 0xaaaaaa
+      ).setAlpha(0.3).setDepth(this.player.depth - 1);
+      this.tweens.add({
+        targets: p,
+        y: y - Phaser.Math.Between(4, 10),
+        alpha: 0, scale: 0.3,
+        duration: Phaser.Math.Between(250, 400),
+        ease: 'Power1',
+        onComplete: () => p.destroy()
+      });
+    }
+  }
+
+  /* ── HUD ─────────────────────────────────────────────── */
+  updateHUD() {
+    document.getElementById('hudUser').textContent = this.username;
+    document.getElementById('hudDomain').textContent = this.domain.toUpperCase();
+    document.getElementById('hudLevel').textContent = `LVL ${this.level}`;
+    document.getElementById('hudProgress').textContent = `${this.levelCorrect}/${SCENARIOS_PER_LEVEL}`;
+    document.getElementById('hudScore').textContent = this.correct;
+    const heartsEl = document.getElementById('hudHearts');
+    heartsEl.innerHTML = `<span style="color:var(--danger); font-weight:bold;">Health: ${this.health}%</span>`;
+  }
+
+  pulseHeart() {
+    const hearts = document.querySelectorAll('.hud-heart:not(.lost)');
+    if (hearts.length) {
+      const last = hearts[hearts.length - 1];
+      last.classList.add('pulse');
+      setTimeout(() => last.classList.remove('pulse'), 500);
+    }
+  }
+
+  showScorePopup(text, color) {
+    const el = document.createElement('div');
+    el.className = 'score-popup';
+    el.textContent = text;
+    el.style.color = color;
+    el.style.left = '50%'; el.style.top = '40%';
+    el.style.transform = 'translateX(-50%)';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  showFeedbackToast(text, isCorrect) {
+    const el = document.createElement('div');
+    el.className = 'feedback-toast';
+    el.textContent = text;
+    el.style.background = isCorrect ? 'rgba(52,211,153,.15)' : 'rgba(248,113,113,.15)';
+    el.style.border = `1px solid ${isCorrect ? 'rgba(52,211,153,.3)' : 'rgba(248,113,113,.3)'}`;
+    el.style.color = isCorrect ? '#34d399' : '#f87171';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2800);
+  }
+
+  /* ── Trigger next question from a seated NPC ──────── */
+  async triggerNextScenario() {
+    if (this.health <= 0 || !this.gameActive) return;
+
+    // Find an idle npc
+    const idleNpcs = this.npcList.filter(n => n.isSitting);
+    if (idleNpcs.length === 0) return;
+
+    const npc = idleNpcs[Math.floor(Math.random() * idleNpcs.length)];
+    npc.isSitting = false;
+
+    // ── Thinking Sequence ──
+    const showThought = (txt, dur) => {
+      const bg = this.add.graphics();
+      const t = this.add.text(npc.x, npc.y - 40, txt, {
+        font: '600 10px Inter, Arial', fill: '#fff',
+        backgroundColor: 'rgba(30,41,59,0.9)', padding: { x: 6, y: 4 }
+      }).setOrigin(0.5).setDepth(100);
+      return { bg, t, dur };
+    };
+
+    const thoughts1 = ["Hmm... who should I ask...?", "I need a second opinion...", "This looks fishy...", "Wait, is this normal?"];
+    const t1Msg = thoughts1[Math.floor(Math.random() * thoughts1.length)];
+    const t1 = showThought(t1Msg, 3000);
+    await this.delay(t1.dur);
+    t1.t.destroy();
+
+    const thoughts2 = [`Aha! ${this.username} is very knowledgeable!`, `I'll ask ${this.username}!`, `Let's see what ${this.username} says.`];
+    const t2Msg = thoughts2[Math.floor(Math.random() * thoughts2.length)];
+    const t2 = showThought(t2Msg, 2000);
+    await this.delay(t2.dur);
+    t2.t.destroy();
+
+    // Stay seated facing original direction
+    this._setNpcTexture(npc, npc.homeDir, 'stand');
+    await this.delay(300);
+
+    // Call out user's name
+    this._showWorldBubble(npc, `Hey ${this.username}! I have a question! Can you come over here?`);
+    if (window.soundEngine.pop) window.soundEngine.pop();
+
+    // Spawn Heart above NPC
+    npc.heartItem = this.add.text(npc.x, npc.y - 65, '❤️', { fontSize: '24px' }).setOrigin(0.5).setDepth(150);
+    this.tweens.add({ targets: npc.heartItem, y: npc.heartItem.y - 10, yoyo: true, repeat: -1, duration: 600 });
+
+    this._waitForPlayer(npc, () => {
+      // Grant Heart
+      if (npc.heartItem) {
+        npc.heartItem.destroy();
+        npc.heartItem = null;
+      }
+      this.health = Math.min(this.health + 10, 100);
+      this.updateHUD();
+      if (window.soundEngine && window.soundEngine.click) window.soundEngine.click();
+      this.showScorePopup('+10% ❤️', '#34d399');
+
+      this.handleNpcArrival(npc);
+    });
+  }
+
+  _waitForPlayer(npc, onComplete) {
+    if (this.health <= 0 || !this.gameActive) {
+      if (npc.heartItem) npc.heartItem.destroy();
+      this._setNpcTexture(npc, npc.homeDir, 'stand');
+      return;
+    }
+
+    // Check distance
+    const dist = Phaser.Math.Distance.Between(npc.x, npc.y, this.player.x, this.player.y);
+    if (dist <= 60) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    // NPC stays in place, waiting...
+    this._setNpcTexture(npc, npc.homeDir, 'stand');
+
+    this.time.delayedCall(150, () => this._waitForPlayer(npc, onComplete));
+  }
+
+  _setNpcTexture(npc, facing, anim) {
+    const key = `npc${npc.npcStyleIdx}_${facing}_${anim}`;
+    if (this.textures.exists(key) && npc.texture.key !== key) {
+      npc.setTexture(key);
+    }
+  }
+
+  _walkNpcTo(npc, tx, ty, duration, onComplete) {
+    // Determine facing direction
+    const dx = tx - npc.x;
+    const dy = ty - npc.y;
+    let facing = 'down';
+    if (Math.abs(dx) > Math.abs(dy)) {
+      facing = dx > 0 ? 'right' : 'left';
+    } else {
+      facing = dy > 0 ? 'down' : 'up';
+    }
+
+    // Walk animation
+    let walkFrame = 0;
+    const walkInterval = setInterval(() => {
+      walkFrame = (walkFrame + 1) % 4;
+      this._setNpcTexture(npc, facing, `walk${walkFrame}`);
+    }, 150);
+
+    this.tweens.add({
+      targets: npc,
+      x: tx, y: ty,
+      duration: duration,
+      ease: 'Linear',
+      onUpdate: () => {
+        npc.label.setPosition(npc.x, npc.y - 28);
+        npc.setDepth(5 + (npc.y / this.mapH) * 10);
+        npc.label.setDepth(npc.depth + 1);
+      },
+      onComplete: () => {
+        clearInterval(walkInterval);
+        this._setNpcTexture(npc, facing, 'stand');
+        if (onComplete) onComplete();
+      }
+    });
+  }
+
+  /* ── NPC arrival ─────────────────────────────────────── */
+  async handleNpcArrival(npc) {
+    window.soundEngine.npcArrive();
+
+    const greetings = [
+      '💬 Hi, good morning how is life going on?',
+      '💬 Hey there, hope you are having a good day!',
+      '💬 Hello! How have you been?',
+      '💬 Good to see you, how are things?',
+    ];
+    const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+    const bubbleBg = this.add.graphics().setDepth(50);
+    const bubbleText = this.add.text(npc.x, npc.y - 46, greeting, {
+      font: '600 10px Outfit, Inter, Arial', fill: '#e2e8f0'
+    }).setOrigin(0.5).setDepth(51);
+
+    const bx = bubbleText.x - bubbleText.width / 2 - 8;
+    const by = bubbleText.y - bubbleText.height / 2 - 5;
+    const bw = bubbleText.width + 16;
+    const bh = bubbleText.height + 10;
+    bubbleBg.fillStyle(0x1e293b, 0.92);
+    bubbleBg.fillRoundedRect(bx, by, bw, bh, 6);
+    bubbleBg.fillTriangle(npc.x - 3, by + bh, npc.x + 3, by + bh, npc.x, by + bh + 6);
+
+    await this.delay(1800);
+    bubbleText.destroy();
+    bubbleBg.destroy();
+
+    // Player auto-replies greeting (No manual typing required)
+    const playerGreetings = ['Hi there!', 'Good morning!', 'Hello!', 'Hey! Doing good.'];
+    const pGreeting = playerGreetings[Math.floor(Math.random() * playerGreetings.length)];
+    this._showWorldBubble(this.player, pGreeting);
+    if (window.soundEngine.pop) window.soundEngine.pop();
+    await this.delay(1400);
+
+    // Surprise Element Cyber Attack Check!
+    if (this.scenariosCompleted > 0 && this.scenariosCompleted % 2 === 0) {
+      this.triggerCyberAttack(npc);
+      return;
+    }
+
+    const transitionPrompts = [
+      "Hey, could you help me understand this?",
+      "Do you have a moment to clarify something for me?",
+      "Could you guide me on what to do next?",
+      "I'm not sure about this can you help me?",
+      "Can I ask you a quick question about this situation?",
+      "Do you mind sharing your thoughts on this?",
+      "Can you confirm on how do it the right way?"
+    ];
+    const transitionPrompt = transitionPrompts[Math.floor(Math.random() * transitionPrompts.length)];
+
+    // Start Choice Sequence (Yes/No)
+    const choice = await this.askChoice(npc, transitionPrompt, true);
+    if (choice === 'no') {
+      this.showFeedbackToast("NPC: Oh, okay. Maybe when you're less busy!", false);
+    } else {
+      let scenario = this.pickScenario();
+      if (!scenario) {
+        this.triggerVictory();
+      } else {
+        await this.askScenario(scenario, npc);
+      }
+    }
+
+    // NPC stays at desk, reset their state for next scenario pool
+    this._setNpcTexture(npc, npc.homeDir, 'stand');
+    npc.isSitting = true;
+    if (this.health > 0) {
+      this.time.addEvent({ delay: 5000, callback: () => this.triggerNextScenario(), loop: false });
+    }
+  }
+
+  /* ── Ask simple Yes/No choice OR just generic input ──────── */
+  askChoice(npc, question, checkNo = true) {
+    return new Promise(resolve => {
+      this.scenarioRunning = true;
+      const modal = document.getElementById('scenarioModal');
+      modal.innerHTML = '';
+      modal.className = 'show';
+
+      const cloud = document.createElement('div');
+      cloud.className = 'thought-cloud';
+      cloud.style.padding = '24px';
+
+      const q = document.createElement('div');
+      q.className = 'scenario-question';
+      q.style.marginBottom = '20px';
+      q.textContent = question;
+      cloud.appendChild(q);
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = checkNo ? 'Type "yes" or anything else...' : 'Type your reply...';
+      input.style.width = '100%';
+      input.style.padding = '12px';
+      input.style.borderRadius = '8px';
+      input.style.border = '1px solid var(--border)';
+      input.style.background = 'rgba(255,255,255,0.05)';
+      input.style.color = 'var(--text)';
+      input.style.marginBottom = '12px';
+      input.onkeydown = (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') submitBtn.click();
+      };
+      input.onkeyup = (e) => e.stopPropagation();
+      cloud.appendChild(input);
+
+      const submitBtn = document.createElement('div');
+      submitBtn.className = 'scenario-option';
+      submitBtn.textContent = 'Submit';
+      submitBtn.style.textAlign = 'center';
+      submitBtn.onclick = () => {
+        const val = input.value.trim().toLowerCase();
+        modal.classList.remove('show');
+        this.scenarioRunning = false;
+
+        if (checkNo) {
+          if (/\bno\b/i.test(val) || val === "n") {
+            resolve('no');
+          } else {
+            resolve('yes');
+          }
+        } else {
+          resolve('done');
+        }
+      };
+      cloud.appendChild(submitBtn);
+      modal.appendChild(cloud);
+      input.focus();
+    });
+  }
+
+  pickScenario() {
+    const pool = (SCENARIOS[this.domain] || SCENARIOS.cyber).filter(
+      s => s.level <= this.level && !this.scenariosUsed.has(s.id)
+    );
+    if (pool.length === 0) return null;
+    const s = pool[Math.floor(Math.random() * pool.length)];
+    this.scenariosUsed.add(s.id);
+    return s;
+  }
+
+  /* ── Scenario — Story Modal ────────────────────────── */
+  askScenario(s, npc) {
+    return new Promise(resolve => {
+      this.scenarioRunning = true;
+      const modal = document.getElementById('scenarioModal');
+      modal.innerHTML = '';
+      modal.className = 'show';
+
+      const cloud = document.createElement('div');
+      cloud.className = 'thought-cloud';
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'cloud-header';
+      const avatar = document.createElement('div');
+      avatar.className = 'cloud-avatar';
+      avatar.textContent = '�';
+      const speakerInfo = document.createElement('div');
+      const speaker = document.createElement('div');
+      speaker.className = 'cloud-speaker';
+      speaker.textContent = `Incident Report: ${s.title}`;
+      const speakerSub = document.createElement('div');
+      speakerSub.className = 'cloud-speaker-sub';
+      speakerSub.textContent = `LVL ${this.level} • Compliance Scenario`;
+      speakerInfo.appendChild(speaker);
+      speakerInfo.appendChild(speakerSub);
+      header.appendChild(avatar);
+      header.appendChild(speakerInfo);
+      cloud.appendChild(header);
+
+      // Timer bar
+      const timerBar = document.createElement('div');
+      timerBar.className = 'scenario-timer-bar';
+      timerBar.style.width = '100%';
+      cloud.appendChild(timerBar);
+
+      let answered = false;
+      // Dynamic time based on word count (approx 20wpm + 15s base)
+      const storyText = s.story || "";
+      const totalTime = TIMER_SECONDS + Math.ceil(storyText.split(' ').length * 0.4);
+      let timeLeft = totalTime;
+
+      const timerEl = document.getElementById('hudTimer');
+      timerEl.textContent = `⏱ ${Math.round(timeLeft)}s`;
+
+      this.timerInterval = setInterval(() => {
+        if (answered) return;
+        timeLeft--;
+        timerEl.textContent = `⏱ ${Math.max(0, Math.round(timeLeft))}s`;
+        timerBar.style.width = `${(timeLeft / totalTime) * 100}%`;
+
+        if (timeLeft <= 5) {
+          timerBar.style.background = 'linear-gradient(90deg, var(--danger), var(--gold))';
+          window.soundEngine.tick();
+        }
+        if (timeLeft <= 0) {
+          answered = true;
+          clearInterval(this.timerInterval);
+          this.handleAnswer(false, null, s, modal, timerEl, resolve);
+        }
+      }, 1000);
+
+      // Story Display (Paragraph format)
+      const storyBox = document.createElement('div');
+      storyBox.className = 'scenario-dialogue';
+      cloud.appendChild(storyBox);
+
+      const renderStory = async () => {
+        const p = document.createElement('div');
+        p.className = 'dialogue-line';
+        p.style.lineHeight = '1.8';
+        p.style.fontSize = '1.1rem';
+        p.innerHTML = `<strong style="color:var(--accent2)">${npc.npcName}:</strong> `;
+        storyBox.appendChild(p);
+
+        // Typewriter effect
+        let charIndex = 0;
+        const typeSpeed = 25;
+
+        const typeChar = () => {
+          if (answered) return;
+          if (charIndex < storyText.length) {
+            p.textContent += storyText.charAt(charIndex);
+            charIndex++;
+            // if (charIndex % 4 === 0) window.soundEngine.typing(); // Removed annoying typing sound
+            storyBox.scrollTop = storyBox.scrollHeight;
+            setTimeout(typeChar, typeSpeed);
+          } else {
+            showChoices();
+          }
+        };
+
+        const showChoices = () => {
+          if (answered) return;
+
+          // Question
+          const q = document.createElement('div');
+          q.className = 'scenario-question';
+          q.style.marginTop = '24px';
+          q.style.borderTop = '1px solid rgba(255,255,255,0.1)';
+          q.style.paddingTop = '16px';
+          q.innerHTML = `<strong style="color:var(--accent)">${this.username}:</strong> <em>(Thinking: ${s.question})</em>`;
+          cloud.appendChild(q);
+
+          // Options Grid
+          const optionsBox = document.createElement('div');
+          optionsBox.className = 'scenario-options-grid';
+          optionsBox.style.display = 'grid';
+          optionsBox.style.gridTemplateColumns = '1fr';
+          optionsBox.style.gap = '8px';
+
+          s.options.forEach((opt, idx) => {
+            const d = document.createElement('div');
+            d.className = 'scenario-option';
+            d.setAttribute('data-letter', OPTION_LETTERS[idx] || '•');
+            d.innerHTML = `<span>${opt}</span>`;
+            d.onclick = () => {
+              if (answered) return;
+              answered = true;
+              clearInterval(this.timerInterval);
+              const isCorrect = idx === s.correct_index;
+              d.classList.add(isCorrect ? 'correct-flash' : 'wrong-flash');
+              if (!isCorrect) {
+                const correct = optionsBox.children[s.correct_index];
+                if (correct) correct.classList.add('correct-flash');
+              }
+              setTimeout(() => this.handleAnswer(isCorrect, idx, s, modal, timerEl, resolve), 800);
+            };
+            optionsBox.appendChild(d);
+          });
+
+          // Manager Choice
+          const managerBtn = document.createElement('div');
+          managerBtn.className = 'scenario-option';
+          managerBtn.style.border = '1.5px solid var(--gold)';
+          managerBtn.style.marginTop = '12px';
+          managerBtn.innerHTML = `<span style="color: var(--gold); font-weight: 700;">👨‍💼 Need help? Consult Mr. Singh (Manager)</span>`;
+          managerBtn.onclick = () => {
+            if (answered) return;
+            answered = true;
+            clearInterval(this.timerInterval);
+            modal.classList.remove('show');
+            this.consultManager(s, npc, resolve);
+          };
+          optionsBox.appendChild(managerBtn);
+          cloud.appendChild(optionsBox);
+        };
+
+        typeChar();
+      };
+
+      renderStory();
+      modal.appendChild(cloud);
+    });
+  }
+
+  /* ── Consult Manager Sequence ───────────────────────── */
+  async consultManager(scenario, originNpc, resolveScenario) {
+    this.scenarioRunning = true; // Block manual input
+
+    // 1. Walk to central corridor
+    const centralX = this.mapW * 0.5;
+    const managerTargetX = centralX + 30; // Stand beside manager
+    const managerTargetY = this.manager.y;
+
+    this._showWorldBubble(this.player, "Wait... I should double check this with Mr. Singh.");
+    await this.delay(3000); // Slower
+
+    // Cartoonic boing sound
+    if (window.soundEngine.boing) window.soundEngine.boing();
+
+    // Walk Player to Manager - Duration increased (8x instead of 6x)
+    const dx1 = Math.abs(centralX - this.player.x);
+    this._walkPlayerTo(centralX, this.player.y, dx1 * 10, () => {
+      const dy1 = Math.abs(managerTargetY - this.player.y);
+      this._walkPlayerTo(centralX, managerTargetY, dy1 * 10, () => {
+        this._walkPlayerTo(managerTargetX, managerTargetY, 500, async () => {
+          // 2. Conversation with Manager
+          this._showWorldBubble(this.player, `Mr Singh, ${originNpc.npcName} asked me about ${scenario.title}. What should I do?`);
+          await this.delay(4000);
+
+          const correctOpt = scenario.options[scenario.correct_index];
+          this._showWorldBubble(this.manager, `Ah, I see. In this situation, the best response is: ${correctOpt}. Compliance always comes first.`);
+          await this.delay(6000); // Much slower
+
+          this._showWorldBubble(this.player, "Understood. Thanks, Mr. Singh!");
+          await this.delay(3000);
+
+          // 3. Walk Back to origin NPC
+          this._walkPlayerTo(centralX, managerTargetY, 500, () => {
+            const dy2 = Math.abs(originNpc.y - this.player.y);
+            this._walkPlayerTo(centralX, originNpc.y, dy2 * 10, () => {
+              const finalX = originNpc.x + (originNpc.x > centralX ? -35 : 35);
+              this._walkPlayerTo(finalX, originNpc.y, 500, () => {
+                // Complete scenario automatically as "Correct" since manager helped
+                this.handleAnswer(true, scenario.correct_index, scenario, document.getElementById('scenarioModal'), document.getElementById('hudTimer'), resolveScenario);
+              });
+            });
+          });
+        });
+      });
+    });
+  }
+
+  _showWorldBubble(target, text) {
+    if (window.soundEngine.pop) window.soundEngine.pop();
+    const bubble = this.add.text(target.x, target.y - 50, text, {
+      font: '600 11px Inter, Arial', fill: '#fff',
+      backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: { x: 12, y: 8 },
+      wordWrap: { width: 180 }
+    }).setOrigin(0.5).setDepth(200);
+    this.time.addEvent({ delay: 3500, callback: () => bubble.destroy() });
+  }
+
+  _walkPlayerTo(tx, ty, duration, onComplete) {
+    // Standard player movement logic
+    const dx = tx - this.player.x;
+    const dy = ty - this.player.y;
+    if (Math.abs(dx) > Math.abs(dy)) this.playerFacing = dx > 0 ? 'right' : 'left';
+    else this.playerFacing = dy > 0 ? 'down' : 'up';
+
+    this.tweens.add({
+      targets: this.player,
+      x: tx, y: ty,
+      duration: Math.max(100, duration),
+      onUpdate: () => {
+        this.playerWalkTimer++;
+        if (this.playerWalkTimer > 6) {
+          this.playerWalkFrame = (this.playerWalkFrame + 1) % 4;
+          this.playerWalkTimer = 0;
+        }
+        this._setPlayerTexture(`walk${this.playerWalkFrame}`);
+        if (this.playerLabel) this.playerLabel.setPosition(this.player.x, this.player.y - 28);
+      },
+      onComplete: () => {
+        this._setPlayerTexture('stand');
+        if (onComplete) onComplete();
+      }
+    });
+  }
+
+  handleAnswer(isCorrect, selectedIdx, scenario, modal, timerEl, resolve) {
+    this.total++;
+    if (isCorrect) {
+      this.correct++;
+      this.levelCorrect++;
+      this.scenariosCompleted++;
+      window.soundEngine.correct();
+      this.showScorePopup('+1 ✓', '#34d399');
+      this.showFeedbackToast('✅ Correct! Great compliance awareness.', true);
+      this.spawnParticles(this.player.x, this.player.y, 0x34d399, 18);
+    } else {
+      this.health = Math.max(0, this.health - 34);
+      window.soundEngine.wrong();
+      this.showScorePopup('−34% ❤️', '#f87171');
+
+      this.showFeedbackToast('❌ I better do right or it might have consequences', false);
+
+      this.cameras.main.shake(400, 0.015);
+    }
+
+    try {
+      fetch('/api/submit-answer', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ user: this.username, domain: this.domain, scenarioId: scenario.id, selected: selectedIdx ?? -1, correct: isCorrect })
+      }).catch(() => { });
+    } catch (e) { }
+
+    this.updateHUD();
+    timerEl.textContent = '';
+
+    modal.style.transition = 'transform .3s ease-in, opacity .3s ease-in';
+    modal.style.transform = 'translate(-50%,-50%) scale(.9)';
+    modal.style.opacity = '0';
+    setTimeout(() => {
+      modal.classList.remove('show');
+      modal.innerHTML = '';
+      modal.style.transition = ''; modal.style.transform = ''; modal.style.opacity = '';
+      this.scenarioRunning = false;
+    }, 350);
+
+    if (this.health <= 0) {
+      this.time.addEvent({ delay: 600, callback: () => this.triggerGameOver(), loop: false });
+      resolve(); return;
+    }
+
+    if (this.levelCorrect >= SCENARIOS_PER_LEVEL && this.level < MAX_LEVEL) {
+      this.level++; this.levelCorrect = 0;
+      window.soundEngine.levelUp();
+      this.showScorePopup(`⬆️ LEVEL ${this.level}!`, '#fbbf24');
+      this.cameras.main.flash(400, 56, 189, 248);
+      this.spawnParticles(this.player.x, this.player.y, 0xfbbf24, 30);
+      this.updateHUD();
+    }
+
+    const remaining = (SCENARIOS[this.domain] || SCENARIOS.cyber).filter(
+      s => !this.scenariosUsed.has(s.id) && s.level <= this.level
+    );
+    if (remaining.length === 0 && this.level >= MAX_LEVEL) {
+      this.time.addEvent({ delay: 600, callback: () => this.triggerVictory(), loop: false });
+    }
+
+    // Walk player back to their seat
+    const homeX = PLAYER_HOME.fx * this.mapW;
+    const homeY = PLAYER_HOME.fy * this.mapH;
+
+    // Calculate simple distance based duration
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, homeX, homeY);
+    const walkDuration = Math.max(800, dist * 12);
+
+    this._walkPlayerTo(homeX, homeY, walkDuration, () => {
+      this._setPlayerTexture('stand');
+      resolve();
+    });
+  }
+
+  async triggerCyberAttack(originNpc) {
+    this.scenariosCompleted++; // Increment so we don't trigger it again immediately
+
+    // Screenshake and alarm
+    this.cameras.main.shake(1500, 0.015);
+    window.soundEngine.wrong();
+    window.soundEngine.gameOver(); // Play ominous sound
+
+    // All NPCs panic
+    this.npcList.forEach(n => {
+      this._showWorldBubble(n, "Oh no! We are attacked by XYZ firm! Client data might be leaked!");
+    });
+    this._showWorldBubble(this.manager, "Everyone remain calm! Secure your workstations immediately!");
+
+    await this.delay(4000);
+
+    // Load special Surprise scenario
+    let cyberScenario = {
+      id: "surprise_attack",
+      title: "🔥 GLOBAL CYBER ATTACK",
+      story: "Red lights are flashing across the office. A rogue group known as XYZ firm is currently exfiltrating gigabytes of client data from the AstraNova live production database. The network is completely compromised and the malware is spreading rapidly.",
+      question: "What is your immediate, primary action?",
+      options: [
+        "Unplug from the network / Isolate affected terminals",
+        "Wait for IT to figure it out",
+        "Reply to the attacker's email",
+        "Pay the requested cryptocurrency ransom"
+      ],
+      correct_index: 0,
+      level: this.level
+    };
+
+    await this.askScenario(cyberScenario, originNpc);
+
+    // Ensure the NPC sits down after the special scenario
+    originNpc.isSitting = true;
+    this._setNpcTexture(originNpc, originNpc.homeDir, 'stand');
+    if (this.health > 0) {
+      this.time.addEvent({ delay: 5000, callback: () => this.triggerNextScenario(), loop: false });
+    }
+  }
+
+  spawnParticles(x, y, color, count) {
+    const colors = [color, 0x38bdf8, 0x818cf8, 0xf472b6, 0xfbbf24];
+    for (let i = 0; i < count; i++) {
+      const c = colors[Math.floor(Math.random() * colors.length)];
+      const p = this.add.circle(x, y, Phaser.Math.Between(2, 4), c).setDepth(60).setAlpha(0.9);
+      this.tweens.add({
+        targets: p,
+        x: x + Phaser.Math.Between(-80, 80),
+        y: y + Phaser.Math.Between(-80, 80),
+        alpha: 0, scale: 0,
+        duration: Phaser.Math.Between(400, 800),
+        ease: 'Power2',
+        onComplete: () => p.destroy()
+      });
+    }
+  }
+
+  triggerGameOver() {
+    this.gameActive = false;
+    window.soundEngine.gameOver();
+    window.soundEngine.stopAmbient();
+    localStorage.setItem('cg_last_score', `${this.correct} / ${this.total}`);
+
+    document.getElementById('gameOverStats').innerHTML =
+      `Domain: <strong>${this.domain.toUpperCase()}</strong><br>` +
+      `Level reached: <strong>${this.level}</strong><br>` +
+      `Health: <strong>${this.health}%</strong><br>` +
+      `Correct: <strong>${this.correct}</strong> / ${this.total}<br>` +
+      `Accuracy: <strong>${this.total ? Math.round(this.correct / this.total * 100) : 0}%</strong>`;
+    document.getElementById('gameOverOverlay').classList.add('show');
+  }
+
+  triggerVictory() {
+    window.soundEngine.victory();
+    window.soundEngine.stopAmbient();
+    localStorage.setItem('cg_last_score', `${this.correct} / ${this.total}`);
+
+    document.getElementById('victoryStats').innerHTML =
+      `Domain: <strong>${this.domain.toUpperCase()}</strong><br>` +
+      `Levels completed: <strong>${MAX_LEVEL}</strong><br>` +
+      `Score: <strong>${this.correct}</strong> / ${this.total}<br>` +
+      `Accuracy: <strong>${this.total ? Math.round(this.correct / this.total * 100) : 0}%</strong>`;
+    document.getElementById('victoryOverlay').classList.add('show');
+    this.startConfetti();
+  }
+
+  startConfetti() {
+    const canvas = document.getElementById('confettiCanvas');
+    canvas.style.display = 'block';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const pieces = [];
+    const colors = ['#38bdf8', '#818cf8', '#f472b6', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#2dd4bf'];
+    for (let i = 0; i < 180; i++) {
+      pieces.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        w: Math.random() * 10 + 4, h: Math.random() * 6 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vy: Math.random() * 3 + 2, vx: (Math.random() - 0.5) * 2.5,
+        rot: Math.random() * 360, rv: (Math.random() - 0.5) * 10
+      });
+    }
+    let frames = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.rv;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      frames++;
+      if (frames < 300) requestAnimationFrame(draw);
+      else canvas.style.display = 'none';
+    };
+    draw();
+  }
+
+  delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+}
+
+/* ── Bootstrap ─────────────────────────────────────────── */
+window.gameStarted = false;
+
+window.addEventListener('load', () => {
+  const config = {
+    type: Phaser.AUTO,
+    parent: 'gameContainer',
+    backgroundColor: '#080e1a',
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    },
+    physics: {
+      default: 'arcade',
+      arcade: { debug: false }
+    },
+    scene: [OfficeScene],
+  };
+  new Phaser.Game(config);
+});

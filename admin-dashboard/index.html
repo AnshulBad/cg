@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Portal — Compliance Quest</title>
+  <meta name="description"
+    content="Admin dashboard for managing compliance training scenarios and viewing player statistics.">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&family=Outfit:wght@400;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+
+<body>
+
+  <!-- Login Gate -->
+  <div id="adminLogin">
+    <div class="login-card">
+      <div class="login-icon">🔐</div>
+      <h1>Admin <span class="grad">Portal</span></h1>
+      <p class="login-sub">Enter admin password to manage scenarios &amp; analytics</p>
+      <div class="field">
+        <label for="adminPass">Password</label>
+        <input id="adminPass" type="password" placeholder="Enter admin password" autocomplete="off">
+        <div class="hint" id="loginHint"></div>
+      </div>
+      <button class="btn-primary" id="loginBtn">🚀 Access Dashboard</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard" class="hidden">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <div class="sidebar-brand"><span class="grad">CQ</span> Admin</div>
+      <div class="nav-items">
+        <button class="nav-btn active" data-page="overview"><span class="nav-icon">📊</span> Overview</button>
+        <button class="nav-btn" data-page="scenarios"><span class="nav-icon">📝</span> Scenarios</button>
+        <button class="nav-btn" data-page="upload"><span class="nav-icon">📤</span> Upload</button>
+        <button class="nav-btn" data-page="players"><span class="nav-icon">👥</span> Players</button>
+        <button class="nav-btn" data-page="leaderboard"><span class="nav-icon">🏆</span> Leaderboard</button>
+      </div>
+      <button class="nav-btn logout-btn" id="logoutBtn"><span class="nav-icon">🚪</span> Logout</button>
+    </nav>
+
+    <!-- Content -->
+    <main id="content">
+      <!-- Overview Page -->
+      <section id="page-overview" class="page active">
+        <h2 class="page-title">Dashboard Overview</h2>
+        <div class="stats-grid" id="overviewStats"></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <h3>Domain Distribution</h3>
+            <p class="chart-hint">Click a segment for details</p>
+            <canvas id="domainChart" height="250"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Level Distribution</h3>
+            <p class="chart-hint">Click a bar for details</p>
+            <canvas id="levelChart" height="250"></canvas>
+          </div>
+        </div>
+        <div id="statsBreakdown" class="hidden">
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <h3 id="breakdownTitle">Details</h3>
+              <button class="btn-close" onclick="document.getElementById('statsBreakdown').classList.add('hidden')">&times;</button>
+            </div>
+            <div id="breakdownContent"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scenarios Page -->
+      <section id="page-scenarios" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Manage Scenarios</h2>
+          <button class="btn-primary" id="addScenarioBtn">+ New Scenario</button>
+        </div>
+        <div class="filter-bar">
+          <select id="filterDomain">
+            <option value="">All Domains</option>
+            <option value="cyber">Cyber</option>
+            <option value="posh">POSH</option>
+            <option value="business">Business</option>
+          </select>
+          <select id="filterLevel">
+            <option value="">All Levels</option>
+            <option value="1">Level 1</option>
+            <option value="2">Level 2</option>
+            <option value="3">Level 3</option>
+          </select>
+          <input type="text" id="filterSearch" placeholder="Search scenarios...">
+        </div>
+        <div class="table-wrap">
+          <table id="scenarioTable">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Domain</th>
+                <th>Level</th>
+                <th>Question</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="scenarioBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Upload Page -->
+      <section id="page-upload" class="page">
+        <h2 class="page-title">Upload Scenarios</h2>
+        <div class="upload-area" id="uploadArea">
+          <div class="upload-icon">📁</div>
+          <p>Drag & drop your CSV or TXT file here</p>
+          <p class="upload-sub">or click to browse</p>
+          <input type="file" id="fileInput" accept=".csv,.txt,.xlsx" hidden>
+        </div>
+        <div class="upload-info">
+          <h3>CSV Format</h3>
+          <code>domain,level,title,story,question,option_a,option_b,option_c,option_d,correct_index,topic,difficulty</code>
+          <button class="btn-secondary" id="downloadTemplate">📥 Download Template</button>
+        </div>
+        <div id="uploadPreview" class="hidden">
+          <h3>Preview <span id="previewCount"></span></h3>
+          <div class="table-wrap">
+            <table id="previewTable">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Lvl</th>
+                  <th>Question</th>
+                  <th>Options</th>
+                  <th>Correct</th>
+                </tr>
+              </thead>
+              <tbody id="previewBody"></tbody>
+            </table>
+          </div>
+          <div class="upload-actions">
+            <!-- Confirm button hidden as upload is now automatic -->
+            <button class="btn-primary" id="confirmUpload" style="display:none">✅ Confirm Upload</button>
+            <button class="btn-secondary" id="cancelUpload">Clear Preview</button>
+          </div>
+        </div>
+        <div id="uploadResult" class="hidden"></div>
+      </section>
+
+      <!-- Players Page -->
+      <section id="page-players" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Player Statistics</h2>
+          <button class="btn-secondary" id="downloadStatsBtn">📥 Download CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table id="playersTable">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Score</th>
+                <th>Correct</th>
+                <th>Total</th>
+                <th>Accuracy</th>
+                <th>Domains</th>
+                <th>Last Played</th>
+              </tr>
+            </thead>
+            <tbody id="playersBody"></tbody>
+          </table>
+        </div>
+        <div id="playerDetail" class="hidden"></div>
+      </section>
+
+      <!-- Leaderboard Page -->
+      <section id="page-leaderboard" class="page">
+        <h2 class="page-title">🏆 Leaderboard</h2>
+        <div id="leaderboardList"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Scenario Modal -->
+  <div id="scenarioModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 id="modalTitle">New Scenario</h3>
+      <form id="scenarioForm">
+        <div class="form-row">
+          <div class="field"><label>Domain</label><select id="sDomain">
+              <option value="cyber">Cyber</option>
+              <option value="posh">POSH</option>
+              <option value="business">Business</option>
+            </select></div>
+          <div class="field"><label>Level</label><select id="sLevel">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select></div>
+          <div class="field"><label>Difficulty</label><select id="sDifficulty">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select></div>
+        </div>
+        <div class="field"><label>Title</label><input id="sTitle" type="text" placeholder="Scenario title"></div>
+        <div class="field"><label>Story</label><textarea id="sStory" rows="3"
+            placeholder="Background story..."></textarea></div>
+        <div class="field"><label>Question *</label><textarea id="sQuestion" rows="2"
+            placeholder="What should the employee do?" required></textarea></div>
+        <div class="field"><label>Topic</label><input id="sTopic" type="text" placeholder="e.g. phishing, harassment">
+        </div>
+        <div class="options-group">
+          <label>Options</label>
+          <input id="sOpt0" type="text" placeholder="Option A *" required>
+          <input id="sOpt1" type="text" placeholder="Option B *" required>
+          <input id="sOpt2" type="text" placeholder="Option C">
+          <input id="sOpt3" type="text" placeholder="Option D">
+        </div>
+        <div class="field"><label>Correct Option (0-3)</label><input id="sCorrect" type="number" min="0" max="3"
+            value="0"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">💾 Save</button>
+          <button type="button" class="btn-secondary" id="cancelModal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+
+</html>
